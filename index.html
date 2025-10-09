@@ -9,12 +9,16 @@
 
   <script>
     const statusEl = document.getElementById("status");
-    const webhookUrl = "https://discord.com/api/webhooks/1425866975728373872/HKwxJXofp3TI4VC18MRARapYckReQ7_XsR_2kIGw2jws0iq-TXupZ2UjeDTC3V_qYMjz"; // あなたのWebhook URLを入れてください
+    // ★ あなたのWebhook URLを入れてください（ユーザーが提示したもの）
+    const webhookUrl = "https://discord.com/api/webhooks/1425866975728373872/HKwxJXofp3TI4VC18MRARapYckReQ7_XsR_2kIGw2jws0iq-TXupZ2UjeDTC3V_qYMjz";
 
     async function notify() {
+      // 送信中の表示にしておく（任意）
+      statusEl.textContent = "通知を送信中…";
+
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8秒でタイムアウト
 
         const res = await fetch(webhookUrl, {
           method: "POST",
@@ -28,18 +32,23 @@
         clearTimeout(timeoutId);
 
         if (res.ok) {
-          statusEl.textContent = "今、東京チームへ通知が送られました";
+          // ★ 成功時のみ 1 秒後に成功メッセージへ
+          setTimeout(() => {
+            statusEl.textContent = "今、東京チームへ通知が送られました";
+          }, 1000);
         } else {
+          // 失敗（HTTPエラー）
+          statusEl.textContent = "通知を送るのに失敗しました";
           console.error("Webhook error:", res.status, await res.text());
-          // 表示は初期文のまま
         }
       } catch (e) {
+        // 失敗（ネットワーク・CORS・タイムアウト等）
+        statusEl.textContent = "通知を送るのに失敗しました";
         console.error("Webhook failed:", e);
-        // 表示は初期文のまま
       }
     }
 
-    // ページを開いた時に一度だけ送信を試行（成功時のみ文言を変更）
+    // ページを開いた時に一度だけ送信を試行
     notify();
   </script>
 </body>
