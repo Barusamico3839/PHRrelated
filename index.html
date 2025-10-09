@@ -2,17 +2,45 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>アクセス通知テスト</title>
-  <script>
-    // Discord通知
-    fetch("https://discord.com/api/webhooks/1425742437975855145/2iXRDzHoQKSBpXEtQ_QhZndlIapVQDhTyGVNCWSAlZRF4tv6Q-cRr9xDvlWB9lQHH4Lv", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({content: "PHRさんから通知が来ました！"})
-    });
-  </script>
+  <title>弔事自動化東京への通知</title>
 </head>
 <body>
-  <h1>アクセス通知テストページ</h1>
+  <h1 id="status">まだ通知は送れていません</h1>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const webhookUrl = "https://discord.com/api/webhooks/XXXXXXXX/XXXXXXXX"; // あなたのWebhook URLを入れてください
+
+    async function notify() {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+        const res = await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content: "PHRさんから通知が来ました！" }),
+          referrerPolicy: "no-referrer",
+          keepalive: true,
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          statusEl.textContent = "今、東京チームへ通知が送られました";
+        } else {
+          console.error("Webhook error:", res.status, await res.text());
+          // 表示は初期文のまま
+        }
+      } catch (e) {
+        console.error("Webhook failed:", e);
+        // 表示は初期文のまま
+      }
+    }
+
+    // ページを開いた時に一度だけ送信を試行（成功時のみ文言を変更）
+    notify();
+  </script>
 </body>
 </html>
