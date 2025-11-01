@@ -1,0 +1,175 @@
+これから、RPAのフローのテスターを作りたいです。
+
+７ステージに分かれて、mainも含めると８つのスクリプトを書いてほしいです。
+
+まず
+0.initial_form.py 
+では、フォームをつくってもらいたくて、
+
+タイトルは(フォント24、一文字ずつ色を変えて、虹色に。)
+"ロボットテスター"
+
+その下に（フォント16、黒色）
+"テストするフローの名前をコピペしてください"
+
+その下に自由記入欄を作り、５０文字ほど入って、ひつようであれば、折り返す記入欄を作ってください。
+ここに入力されたストリングを
+"flow_name"としてほぞんして。
+
+その下に（フォント16、黒色）
+"テストする手配番号を半角スペース区切りで記入してください。すべて半角で入力してください
+ex. 4785 4886 4897 4667,,,,"
+
+その下に自由記入欄を作り２００文字ほど入って、ちゃんと折り返して見れるように大きめの記入欄を作ってください。
+”確定”が押されたらこの回答を記録し、この文字列ストリングを、スペースで区切られたところを境目に、int型の配列として記録してください。
+この配列を"tehai_numbers"として保存して。
+
+最後に一番下、中央に、”確定”と”閉じる”のボタンを作り、
+”閉じる”はプログラムを終了し、
+"確定"押されたら、
+もし問題なくint型の配列、（要素はすべて４桁）であれば
+"%tehai_numbersの要素数%個のテストを開始します。”
+という文章を出したウインドウを作り"OK"で次に進みます。
+
+"ok"が押されたら、
+power automateを起動し、
+"flow_name"の名前のフローを開始して。
+
+1.close_all_buttons.py
+i=0; 
+while(i< tehai_numbersの要素数)
+{
+    tehai_number=tehai_numbers[i];
+    i++;
+} 
+のように変数%tehai_number%を定義して
+
+フローが始まったら、
+
+もし
+Name:	"ダイアログ"
+ControlType:	UIA_WindowControlTypeId (0xC370)
+AutomationId:	"FormMessageBox"
+ClassName:	"WindowsForms10.Window.208.app.0.6e7d48_r7_ad1"
+が出てきたら、
+
+Name:	"RichEdit Control"
+ControlType:	UIA_DocumentControlTypeId (0xC36E)
+AutomationId:	"rtbMessage"
+ClassName:	"WindowsForms10.RICHEDIT50W.app.0.6e7d48_r7_ad1"
+
+の内容を%message_dialog%に保存してほしい。
+
+そのあと、
+Name:	"OK"
+ControlType:	UIA_ButtonControlTypeId (0xC350)
+AutomationId:	"4392456"
+ClassName:	"WindowsForms10.BUTTON.app.0.6e7d48_r7_ad1"
+
+を押してほしい。
+
+もし、"ok"がない場合は
+2.get_pad_result.py
+に移ってほしい。
+
+Name:	"対応するメール"
+ControlType:	UIA_WindowControlTypeId (0xC370)
+AutomationId:	"FormInputDialog"
+ClassName:	"WindowsForms10.Window.8.app.0.6e7d48_r7_ad1"
+
+このウインドウが出てきたら
+Name:	"入力"
+ControlType:	UIA_EditControlTypeId (0xC354)
+AutomationId:	"txtUserInput"
+ClassName:	"WindowsForms10.EDIT.app.0.6e7d48_r7_ad1"
+
+ここに、%tehai_number%を記入して
+
+Name:	"OK"
+ControlType:	UIA_ButtonControlTypeId (0xC350)
+AutomationId:	"btnOk"
+ClassName:	"WindowsForms10.BUTTON.app.0.6e7d48_r7_ad1"
+
+を押して。
+
+その次、
+Name:	"実行する範囲"
+ControlType:	UIA_WindowControlTypeId (0xC370)
+AutomationId:	"FormSelectDialog"
+ClassName:	"WindowsForms10.Window.8.app.0.6e7d48_r7_ad1"
+がでてきたら
+Name:	"OK"
+ControlType:	UIA_ButtonControlTypeId (0xC350)
+AutomationId:	"btnOk"
+ClassName:	"WindowsForms10.BUTTON.app.0.6e7d48_r7_ad1"
+を押して。
+
+もしこれをやってる間にPADのフローが停止したら、4.save resultに行ってほしい。
+
+
+2.get_pad_result.py
+
+ここまできたら、
+"C:\Users\E375411\Desktop\【全社標準】弔事対応フォルダ\2. RPAブック\RPAブック.xlsx"
+のファイルの”RPAシート”を
+"C:\Users\E375411\Desktop\【全社標準】弔事対応フォルダ\5.test_bot\"
+というディレクトリに、
+"results_%プログラムが開始した日時%"　%プログラムが開始した日時%は　MMDD_HHMM
+というファイルを一週目に、もし存在しない場合は作り
+そこの一番後ろにシート名"%tehai_number%"と設定してコピーしてほしい。
+
+できたら、
+Name:	"はい"
+ControlType:	UIA_ButtonControlTypeId (0xC350)
+AutomationId:	"3672912"
+ClassName:	"WindowsForms10.BUTTON.app.0.6e7d48_r7_ad1"
+を押し、
+
+そのあと、数秒後に出てくる
+Name:	"OK"
+ControlType:	UIA_ButtonControlTypeId (0xC350)
+AutomationId:	"8590578"
+ClassName:	"WindowsForms10.BUTTON.app.0.6e7d48_r7_ad1"
+を押してほしいです。
+
+そのあとも、もし
+Name:	"OK"
+ControlType:	UIA_ButtonControlTypeId (0xC350)
+AutomationId:	"8590578"
+ClassName:	"WindowsForms10.BUTTON.app.0.6e7d48_r7_ad1"
+が出てきたら”ok”ボタンを押してほしいです。
+
+PADのフローが終了しましたら、
+3.get_mail_result.pyにすすんでほしい。
+
+3.get_mail_result.py
+では、
+
+"C:\Users\E375411\Desktop\【全社標準】弔事対応フォルダ\2. RPAブック\RPAブック.xlsx"
+のファイルの”RPAシート”の"D15"のセルの内容を含むメールを
+
+アウトルックの送信済みメールから探して、もし複数ある場合は、
+"D27"のセルと一致度が一番高い、メールをとってきてほしい。
+
+そのメールの内容を"E3"に張り付けて、E列の横幅をはみ出ないようにいっぱい伸ばして。
+
+ここまでやったら、5.compare_results.pyに進む
+
+4.save_results.py
+これはやっぱりいらない。
+
+
+5.compare_results.py
+ここは後で開発する。６に進んで。
+
+6.start_next_case.py main.py
+ここまで来たら、
+tehai_numbersのi++して、次の要素で同じことをやりたい。
+PADを終了して、
+"flow_name"の名前のフローを開始して,
+1.close_all_buttonsからまた初めて。
+
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+
+これ全部一旦書いてほしい。
+途中で標準出力にどこで止まったのか、わかるようにエラーメッセージを出力もしてほしい。
