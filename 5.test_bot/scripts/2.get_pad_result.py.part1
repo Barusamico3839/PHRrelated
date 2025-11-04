@@ -1,0 +1,77 @@
+# -*- coding: utf-8 -*-
+import os
+import sys
+import time
+from typing import Optional
+import glob
+import shutil
+import re
+
+
+def _import_openpyxl():
+    try:
+        import openpyxl  # type: ignore
+        return openpyxl
+    except Exception as e:
+        print(f"[2.get_pad_result] openpyxl 未インストール: {e}")
+        return None
+
+
+def _import_uia() -> Optional[object]:
+    try:
+        import uiautomation as auto
+        return auto
+    except Exception as e:
+        print(f"[2.get_pad_result] uiautomation 未インストールまたは利用不可: {e}")
+        return None
+
+
+def _ensure_results_book(dst_path: str):
+    oxl = _import_openpyxl()
+    if not oxl:
+        raise RuntimeError("openpyxl が必要です")
+    if os.path.exists(dst_path):
+        return
+    wb = oxl.Workbook()
+    # 少なくとも1枚はシートを残す（空ブック保存対策）
+    ws = wb.active
+    ws.title = "Sheet1"
+    wb.save(dst_path)
+    print(f"[2.get_pad_result] 作成 {dst_path}")
+
+
+def _copy_sheet_values(src_path: str, src_sheet: str, dst_path: str, new_sheet_title: str) -> str:
+    oxl = _import_openpyxl()
+    if not oxl:
+        raise RuntimeError("openpyxl が必要です")
+    if not os.path.exists(src_path):
+        raise FileNotFoundError(f"ソースファイルが見つかりません: {src_path}")
+    _ensure_results_book(dst_path)
+
+    src_wb = oxl.load_workbook(src_path, data_only=True)
+    if src_sheet not in src_wb.sheetnames:
+        raise ValueError(f"シートが見つかりません: {src_sheet}")
+    s = src_wb[src_sheet]
+
+    dst_wb = oxl.load_workbook(dst_path)
+    # シートが1枚も無い場合に備える（念のため）
+    if not dst_wb.sheetnames:
+        dst_wb.create_sheet("Sheet1")
+    title = str(new_sheet_title)
+    base_title = title
+    suffix = 1
+    while title in dst_wb.sheetnames:
+        suffix += 1
+        title = f"{base_title}_{suffix}"
+    d = dst_wb.create_sheet(title)
+
+    for row in s.iter_rows():
+        for cell in row:
+            d.cell(row=cell.row, column=cell.column, value=cell.value)
+
+    dst_wb.save(dst_path)
+    print(f"[2.get_pad_result] '{src_sheet}' を '{dst_path}' のシート '{title}' にコピーしました")
+    return title
+
+
+

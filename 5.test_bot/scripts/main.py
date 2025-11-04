@@ -1,4 +1,117 @@
-# -*- coding: utf-8 -*-
+def _dismiss_notification_toast(timeout: float = 5.0) -> int:
+    """Dismiss Windows notification toast quickly.
+    Tries Button(AutomationId='DismissButton'), then Name match, then clicks by coordinates.
+    Returns the number of dismiss clicks performed (up to 3).
+    """
+    auto = _import_uia()
+    if not auto:
+        return 0
+    clicked = 0
+
+    def _click_xy(x: int, y: int) -> bool:
+        try:
+            import ctypes, time as _t
+            user32 = ctypes.windll.user32
+            try:
+                user32.SetProcessDPIAware()
+            except Exception:
+                pass
+            user32.SetCursorPos(int(x), int(y))
+            MOUSEEVENTF_LEFTDOWN = 0x0002
+            MOUSEEVENTF_LEFTUP = 0x0004
+            user32.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+            _t.sleep(0.02)
+            user32.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+            return True
+        except Exception:
+            try:
+                import pyautogui
+                pyautogui.FAILSAFE = False
+                pyautogui.click(x, y)
+                return True
+            except Exception:
+                return False
+
+    def _center_of(elem) -> tuple:
+        try:
+            rect = getattr(elem, 'BoundingRectangle', None)
+            if rect is None:
+                return ()
+            # Support tuple/list or object with attributes
+            if isinstance(rect, (tuple, list)) and len(rect) >= 4:
+                l, t, r, b = rect[0], rect[1], rect[2], rect[3]
+            else:
+                l = getattr(rect, 'left', None); t = getattr(rect, 'top', None)
+                r = getattr(rect, 'right', None); b = getattr(rect, 'bottom', None)
+                if None in (l, t, r, b):
+                    return ()
+            cx = int((int(l) + int(r)) / 2)
+            cy = int((int(t) + int(b)) / 2)
+            return (cx, cy)
+        except Exception:
+            return ()
+
+    deadline = time.time() + max(0.5, timeout)
+    while time.time() < deadline:
+        try:
+            root = auto.GetRootControl()
+            queue = list(getattr(root, 'GetChildren', lambda: [])())
+            seen = set()
+            while queue:
+                c = queue.pop(0)
+                if id(c) in seen:
+                    continue
+                seen.add(id(c))
+                try:
+                    btn = None
+                    try:
+                        btn = c.ButtonControl(AutomationId='DismissButton')
+                    except Exception:
+                        btn = None
+                    target = None
+                    if btn and btn.Exists(0):
+                        target = btn
+                    else:
+                        try:
+                            btn2 = c.ButtonControl(Name='この通知を通知センターに移動する')
+                        except Exception:
+                            btn2 = None
+                        if btn2 and btn2.Exists(0):
+                            target = btn2
+                    if target:
+                        # Announce and prefer coordinate click for speed/stability
+                        try:
+                            print('burnt toast出現！撃退します')
+                        except Exception:
+                            pass
+                        ok = False
+                        pt = _center_of(target)
+                        if pt:
+                            ok = _click_xy(pt[0], pt[1])
+                        if not ok:
+                            try:
+                                target.Click()
+                                ok = True
+                            except Exception:
+                                pass
+                        if ok:
+                            clicked += 1
+                            if clicked >= 3:
+                                return clicked
+                            # continue scanning for any stacked toasts
+                            continue
+                except Exception:
+                    pass
+                try:
+                    for ch in c.GetChildren():
+                        if id(ch) not in seen:
+                            queue.append(ch)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        time.sleep(0.15)
+    return clicked
 import os
 import sys
 import time
@@ -100,7 +213,7 @@ def _resolve_image_path(base_name: str) -> Optional[str]:
     return None
 
 
-def _click_continue_by_image(timeout: float = 45.0, image_name: str = "zokkou_botton") -> bool:
+def _click_continue_by_image(timeout: float = 90.0, image_name: str = "zokkou_botton") -> bool:
     start_ts = time.time()
     last_report = -1
     img_path = _resolve_image_path(image_name)
@@ -205,7 +318,7 @@ def _move_mouse_and_click_strict_v2(x: int, y: int) -> bool:
 
 
 
-def _click_continue_by_image_v2(timeout: float = 45.0, image_name: str = "zokkou_botton") -> bool:
+def _click_continue_by_image_v2(timeout: float = 90.0, image_name: str = "zokkou_botton") -> bool:
     """Image search across all monitors and click until the image disappears.
     Proceeds only when the image vanishes, logs every action.
     """
@@ -443,6 +556,77 @@ def _find_power_automate_hwnd() -> int:
     except Exception:
         pass
     return 0
+
+
+def _minimize_all_except_log_window():
+    """Minimize all visible top-level windows except the Tk log window.
+    If the log window is minimized, restore it and send it to back.
+    """
+    try:
+        logwin = globals().get("_GLOBAL_LOGWIN")
+        log_hwnd = 0
+        if logwin and getattr(logwin, 'root', None):
+            try:
+                log_hwnd = int(logwin.root.winfo_id())
+            except Exception:
+                log_hwnd = 0
+        import ctypes
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+        IsWindowVisible = user32.IsWindowVisible
+        GetClassNameW = user32.GetClassNameW
+        ShowWindow = user32.ShowWindow
+        GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+        SW_MINIMIZE = 6
+
+        @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+        def _enum_proc(hwnd, _lparam):
+            try:
+                if hwnd == 0 or hwnd == log_hwnd:
+                    return True
+                if not IsWindowVisible(hwnd):
+                    return True
+                clsbuf = ctypes.create_unicode_buffer(256)
+                try:
+                    GetClassNameW(hwnd, clsbuf, 256)
+                except Exception:
+                    clsbuf.value = ''
+                cls = clsbuf.value or ''
+                # Skip desktop/taskbar and worker windows
+                if cls in ('Progman', 'Shell_TrayWnd', 'WorkerW'):
+                    return True
+                ShowWindow(hwnd, SW_MINIMIZE)
+            except Exception:
+                pass
+            return True
+
+        try:
+            EnumWindows = user32.EnumWindows
+            EnumWindows(_enum_proc, 0)
+        except Exception:
+            pass
+
+        # Ensure log window is shown and sent to back if it was minimized
+        try:
+            if logwin and getattr(logwin, 'root', None):
+                state = ''
+                try:
+                    state = str(logwin.root.state())
+                except Exception:
+                    state = ''
+                if state and state.lower() != 'normal':
+                    try:
+                        logwin.root.deiconify()
+                    except Exception:
+                        pass
+                try:
+                    logwin.root.lower()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    except Exception:
+        pass
 
 
 def _close_power_automate_console(mode: str = 'hide') -> bool:
@@ -754,12 +938,18 @@ def main():
         # 起動直後に『続行』を画像で探索してクリック（UIAは使わない）
         try:
             print("[debug] ショートカット起動後 → 画像探索で続行ボタンを探します")
-            if _click_continue_by_image(timeout=45.0, image_name="zokkou_botton"):
+            if _click_continue_by_image(timeout=90.0, image_name="zokkou_botton"):
+                # Dismiss Windows notification toast if it pops up
                 try:
                     if not _close_power_automate_console(mode='hide'):
                         _minimize_power_automate_window()
                 except Exception:
                     _minimize_power_automate_window()
+                # After hiding the console, quickly dismiss any notification toast
+                try:
+                    _dismiss_notification_toast(2.0)
+                except Exception:
+                    pass
             else:
                 print("[main] 続行ボタンが消えないため終了します")
                 _shutdown_logging_overlay(); _show_failed_banner(); sys.exit(1)
@@ -770,6 +960,11 @@ def main():
 
         try:
             step1 = close_all.run(tehai_number)
+            # Step1完了後: ログウインドウ以外を最小化。ログが最小化なら復元して背面へ。
+            try:
+                _minimize_all_except_log_window()
+            except Exception:
+                pass
         except Exception as e:
             print(f"[main] ステップ1エラー: {e}")
             _shutdown_logging_overlay(); _show_failed_banner(); sys.exit(1)
@@ -806,13 +1001,17 @@ def main():
             pass
 
         try:
-            sheet_name = get_pad.run(tehai_number, timestamp)
+            try:
+                _msg = step1.get('message_dialog') if isinstance(step1, dict) else None
+            except Exception:
+                _msg = None
+            sheet_name = get_pad.run(tehai_number, timestamp, i, _msg)
         except Exception as e:
             print(f"[main] ステップ2エラー: {e}")
             _shutdown_logging_overlay(); _show_failed_banner(); sys.exit(1)
 
         try:
-            get_mail.run(tehai_number, timestamp, sheet_name)
+            get_mail.run(tehai_number, timestamp, sheet_name, i)
         except Exception as e:
             print(f"[main] ステップ3エラー: {e}")
             _shutdown_logging_overlay(); _show_failed_banner(); sys.exit(1)
@@ -851,6 +1050,7 @@ if __name__ == "__main__":
         print(f"[main] 致命的エラー: {e}")
         _show_failed_banner()
         sys.exit(1)
+
 
 
 

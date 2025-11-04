@@ -1,0 +1,20 @@
+これから、"弔事自動化ロボ"別名"chouji_ROBO"を開発していきます
+
+弔事ロボは５個のステップに分かれています。
+それぞれ、
+A.create_RPAsheet
+B.chouji_tehai
+C.chouden_tehai
+D.search_my_boss
+E.create_email
+
+
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+test_search_my_boss
+
+マイクロソフトの上司を検索できるか、テストしたいです。
+言語はpythonでもpower shell7でもいいので、
+"okada.kazuhito@jp.panasonic.com"
+のマイクロソフトデータベース上の上司を検索してきたいです。
+
+＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝

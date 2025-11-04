@@ -51,6 +51,185 @@ def _find_win(auto, name=None, automation_id=None, class_name=None, timeout=3):
         time.sleep(0.2)
     return None
 
+def _dismiss_toast_fast(auto, rounds: int = 2) -> int:
+    """Quickly dismiss toast notifications by clicking DismissButton at coordinates.
+    Returns the number of clicks performed (up to 3).
+    """
+    clicked = 0
+    if not auto:
+        return 0
+    for _ in range(max(1, int(rounds))):
+        try:
+            root = auto.GetRootControl()
+            q = list(getattr(root, 'GetChildren', lambda: [])())
+            seen = set()
+            while q:
+                c = q.pop(0)
+                if id(c) in seen:
+                    continue
+                seen.add(id(c))
+                try:
+                    aid = getattr(c, 'AutomationId', '') or ''
+                    cls = getattr(c, 'ClassName', '') or ''
+                    if aid == 'NormalToastView' or cls == 'FlexibleToastView':
+                        try:
+                            btn = c.ButtonControl(AutomationId='DismissButton')
+                        except Exception:
+                            btn = None
+                        if btn and btn.Exists(0):
+                            try:
+                                print('burnt toast出現！撃退します')
+                            except Exception:
+                                pass
+                            rect = getattr(btn, 'BoundingRectangle', None)
+                            cx = cy = None
+                            try:
+                                if isinstance(rect, (tuple, list)) and len(rect) >= 4:
+                                    l, t, r, b = rect[0], rect[1], rect[2], rect[3]
+                                    cx = int((int(l) + int(r)) / 2)
+                                    cy = int((int(t) + int(b)) / 2)
+                                else:
+                                    l = getattr(rect, 'left', None); t = getattr(rect, 'top', None)
+                                    r = getattr(rect, 'right', None); b = getattr(rect, 'bottom', None)
+                                    if None not in (l, t, r, b):
+                                        cx = int((int(l) + int(r)) / 2)
+                                        cy = int((int(t) + int(b)) / 2)
+                            except Exception:
+                                cx = cy = None
+                            if cx is not None and cy is not None:
+                                try:
+                                    import ctypes, time as _t
+                                    user32 = ctypes.windll.user32
+                                    try:
+                                        user32.SetProcessDPIAware()
+                                    except Exception:
+                                        pass
+                                    user32.SetCursorPos(int(cx), int(cy))
+                                    user32.mouse_event(0x0002, 0, 0, 0, 0)
+                                    _t.sleep(0.015)
+                                    user32.mouse_event(0x0004, 0, 0, 0, 0)
+                                    clicked += 1
+                                    if clicked >= 3:
+                                        return clicked
+                                    continue
+                                except Exception:
+                                    try:
+                                        import pyautogui
+                                        pyautogui.FAILSAFE = False
+                                        pyautogui.click(cx, cy)
+                                        clicked += 1
+                                        if clicked >= 3:
+                                            return clicked
+                                        continue
+                                    except Exception:
+                                        pass
+                except Exception:
+                    pass
+                try:
+                    for ch in c.GetChildren():
+                        if id(ch) not in seen:
+                            q.append(ch)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    return clicked
+
+def _click_ok_stronger(auto, parent, name: str, automation_id: str) -> bool:
+    """Even more aggressive OK click: dismiss toasts, coordinate click, retry.
+    """
+    try:
+        for _ in range(5):
+            # Dismiss any toast quickly
+            try:
+                _dismiss_toast_fast(auto, rounds=2)
+            except Exception:
+                pass
+            # Re-acquire button each try
+            btn = None
+            try:
+                btn = parent.ButtonControl(AutomationId=automation_id)
+            except Exception:
+                btn = None
+            if not btn or not btn.Exists(0):
+                try:
+                    btn = parent.ButtonControl(Name=name)
+                except Exception:
+                    btn = None
+            try:
+                parent.SetActive()
+            except Exception:
+                pass
+            if btn and btn.Exists(0):
+                # Prefer coordinate click
+                rect = getattr(btn, 'BoundingRectangle', None)
+                cx = cy = None
+                try:
+                    if isinstance(rect, (tuple, list)) and len(rect) >= 4:
+                        l, t, r, b = rect[0], rect[1], rect[2], rect[3]
+                        cx = int((int(l) + int(r)) / 2)
+                        cy = int((int(t) + int(b)) / 2)
+                    else:
+                        l = getattr(rect, 'left', None); t = getattr(rect, 'top', None)
+                        r = getattr(rect, 'right', None); b = getattr(rect, 'bottom', None)
+                        if None not in (l, t, r, b):
+                            cx = int((int(l) + int(r)) / 2)
+                            cy = int((int(t) + int(b)) / 2)
+                except Exception:
+                    cx = cy = None
+                if cx is not None and cy is not None:
+                    try:
+                        import ctypes, time as _t
+                        user32 = ctypes.windll.user32
+                        try:
+                            user32.SetProcessDPIAware()
+                        except Exception:
+                            pass
+                        user32.SetCursorPos(int(cx), int(cy))
+                        user32.mouse_event(0x0002, 0, 0, 0, 0)
+                        _t.sleep(0.02)
+                        user32.mouse_event(0x0004, 0, 0, 0, 0)
+                        print("[1.close_all_buttons] 'OK' ボタンをクリック")
+                        return True
+                    except Exception:
+                        try:
+                            import pyautogui
+                            pyautogui.FAILSAFE = False
+                            pyautogui.click(cx, cy)
+                            print("[1.close_all_buttons] 'OK' ボタンをクリック")
+                            return True
+                        except Exception:
+                            pass
+                # Try UIA Click
+                try:
+                    btn.Click()
+                    print("[1.close_all_buttons] 'OK' ボタンをクリック")
+                    return True
+                except Exception:
+                    pass
+            try:
+                time.sleep(0.08)
+            except Exception:
+                pass
+        # final fallback: press Enter a few times
+        for _ in range(3):
+            try:
+                try:
+                    parent.SetFocus()
+                except Exception:
+                    pass
+                auto.SendKeys('{ENTER}', interval=0.0, waitTime=0.0)
+                print("[1.close_all_buttons] 'OK' ボタンをクリック")
+                return True
+            except Exception:
+                try:
+                    time.sleep(0.05)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+    return False
+
 
 def _click_ok(auto, parent, name: str, automation_id: str):
     try:
@@ -70,6 +249,88 @@ def _click_ok(auto, parent, name: str, automation_id: str):
             return True
     except Exception as e:
         print(f"[1.close_all_buttons] OKクリック例外: {e}")
+    return False
+
+
+def _click_ok_robust(auto, parent, name: str, automation_id: str) -> bool:
+    """Robust OK click that ignores overlays and prefers coordinate click.
+    Tries UIA Click, then coordinate click, then keyboard Enter.
+    """
+    try:
+        btn = None
+        try:
+            btn = parent.ButtonControl(AutomationId=automation_id)
+        except Exception:
+            btn = None
+        if not btn or not btn.Exists(0):
+            try:
+                btn = parent.ButtonControl(Name=name)
+            except Exception:
+                btn = None
+        try:
+            parent.SetActive()
+        except Exception:
+            pass
+        if btn and btn.Exists(0):
+            # Try UIA Click
+            try:
+                btn.Click()
+                print("[1.close_all_buttons] 'OK' ボタンをクリック")
+                return True
+            except Exception:
+                pass
+            # Fallback: coordinate click at center of button
+            rect = getattr(btn, 'BoundingRectangle', None)
+            cx = cy = None
+            if isinstance(rect, (tuple, list)) and len(rect) >= 4:
+                l, t, r, b = rect[0], rect[1], rect[2], rect[3]
+                cx = int((int(l) + int(r)) / 2)
+                cy = int((int(t) + int(b)) / 2)
+            else:
+                l = getattr(rect, 'left', None); t = getattr(rect, 'top', None)
+                r = getattr(rect, 'right', None); b = getattr(rect, 'bottom', None)
+                if None not in (l, t, r, b):
+                    cx = int((int(l) + int(r)) / 2)
+                    cy = int((int(t) + int(b)) / 2)
+            if cx is not None and cy is not None:
+                try:
+                    import ctypes, time as _t
+                    user32 = ctypes.windll.user32
+                    try:
+                        user32.SetProcessDPIAware()
+                    except Exception:
+                        pass
+                    user32.SetCursorPos(int(cx), int(cy))
+                    user32.mouse_event(0x0002, 0, 0, 0, 0)
+                    _t.sleep(0.02)
+                    user32.mouse_event(0x0004, 0, 0, 0, 0)
+                    print('[1.close_all_buttons] OK clicked')
+                    return True
+                except Exception:
+                    try:
+                        import pyautogui
+                        pyautogui.FAILSAFE = False
+                        pyautogui.click(cx, cy)
+                        print('[1.close_all_buttons] OK clicked')
+                        return True
+                    except Exception:
+                        pass
+        # Keyboard fallback: send Enter to the dialog
+        try:
+            try:
+                parent.SetFocus()
+            except Exception:
+                pass
+            auto.SendKeys('{ENTER}', interval=0.0, waitTime=0.0)
+            print("[1.close_all_buttons] 'OK' ボタンをクリック")
+            return True
+        except Exception:
+            pass
+    except Exception as e:
+        try:
+            print(f"[1.close_all_buttons] OKクリック例外: {e}")
+        except Exception:
+            pass
     return False
 
 
@@ -135,6 +396,8 @@ def run(tehai_number: int) -> Dict[str, Any]:
 
     auto = _import_uia()
     message_dialog: Optional[str] = None
+    _step1_start_ts = time.time()
+    _step1_min_end_ts = _step1_start_ts + 60.0
     if not auto:
         print("[1.close_all_buttons] UI操作不可のため次工程へ")
         return {"message_dialog": None, "next": "step2"}
@@ -185,7 +448,9 @@ def run(tehai_number: int) -> Dict[str, Any]:
                         except Exception:
                             pass
                     if set_ok:
-                        _click_ok(auto, mail_win, name='OK', automation_id='btnOk')
+                        # Stronger OK: dismiss toasts and click by coordinates
+                        if not _click_ok_stronger(auto, mail_win, name='OK', automation_id='btnOk'):
+                            _click_ok_robust(auto, mail_win, name='OK', automation_id='btnOk')
                     else:
                         print('[1.close_all_buttons] 入力確認ができないため、OKは押しません')
 
@@ -197,7 +462,8 @@ def run(tehai_number: int) -> Dict[str, Any]:
             range_win = _find_win(auto, name="実行する範囲", automation_id="FormSelectDialog", class_name="WindowsForms10.Window.8.app.0.6e7d48_r7_ad1", timeout=1)
             if range_win:
                 print("[1.close_all_buttons] '実行する範囲' 検出 → OK")
-                _click_ok(auto, range_win, name="OK", automation_id="btnOk")
+                if not _click_ok_stronger(auto, range_win, name="OK", automation_id="btnOk"):
+                    _click_ok_robust(auto, range_win, name="OK", automation_id="btnOk")
         except Exception:
             pass
 
@@ -213,26 +479,93 @@ def run(tehai_number: int) -> Dict[str, Any]:
                         return {"message_dialog": message_dialog, "next": "step4"}
                     if "メール内容の確認をしてください。" in message_dialog:
                         _terminate_power_automate()
+                        # Ensure step1 takes at least 60 seconds before finishing
+                        try:
+                            remain = _step1_min_end_ts - time.time()
+                            if remain > 0:
+                                time.sleep(remain)
+                        except Exception:
+                            pass
                         return {"message_dialog": message_dialog, "next": "step2"}
-                _click_ok(auto, dlg, name="OK", automation_id="4392456")
+                if not _click_ok_stronger(auto, dlg, name="OK", automation_id="4392456"):
+                    _click_ok_robust(auto, dlg, name="OK", automation_id="4392456")
         except Exception:
             pass
 
         # フロー完了トースト
+        # トースト（通知）が出たら DismissButton を座標優先でクリックして閉じる
         try:
             root = auto.GetRootControl()
-            for w in root.GetChildren():
-                try:
-                    nm = (getattr(w, 'Name', '') or '')
-                    aid = getattr(w, 'AutomationId', '') or ''
-                    cls = getattr(w, 'ClassName', '') or ''
-                    if aid == 'NormalToastView' or cls == 'FlexibleToastView':
-                        if 'Power Automate' in nm and '正常に完了' in nm:
-                            print('[1.close_all_buttons] 完了トースト検出')
-                            _terminate_power_automate()
-                            return {"message_dialog": message_dialog, "next": "step4"}
-                except Exception:
+            q = list(getattr(root, "GetChildren", lambda: [])())
+            seen = set()
+            while q:
+                c = q.pop(0)
+                if id(c) in seen:
                     continue
+                seen.add(id(c))
+                try:
+                    aid = getattr(c, "AutomationId", "") or ""
+                    cls = getattr(c, "ClassName", "") or ""
+                    if aid == "NormalToastView" or cls == "FlexibleToastView":
+                        try:
+                            btn = c.ButtonControl(AutomationId="DismissButton")
+                        except Exception:
+                            btn = None
+                        if btn and btn.Exists(0):
+                            try:
+                                print("burnt toast出現！撃退します")
+                            except Exception:
+                                pass
+                            rect = getattr(btn, "BoundingRectangle", None)
+                            cx = cy = None
+                            try:
+                                if isinstance(rect, (tuple, list)) and len(rect) >= 4:
+                                    l, t, r, b = rect[0], rect[1], rect[2], rect[3]
+                                    cx = int((int(l) + int(r)) / 2)
+                                    cy = int((int(t) + int(b)) / 2)
+                                else:
+                                    l = getattr(rect, "left", None); t = getattr(rect, "top", None)
+                                    r = getattr(rect, "right", None); b = getattr(rect, "bottom", None)
+                                    if None not in (l, t, r, b):
+                                        cx = int((int(l) + int(r)) / 2)
+                                        cy = int((int(t) + int(b)) / 2)
+                            except Exception:
+                                cx = cy = None
+                            clicked = False
+                            if cx is not None and cy is not None:
+                                try:
+                                    import ctypes, time as _t
+                                    user32 = ctypes.windll.user32
+                                    try:
+                                        user32.SetProcessDPIAware()
+                                    except Exception:
+                                        pass
+                                    user32.SetCursorPos(int(cx), int(cy))
+                                    user32.mouse_event(0x0002, 0, 0, 0, 0)
+                                    _t.sleep(0.02)
+                                    user32.mouse_event(0x0004, 0, 0, 0, 0)
+                                    clicked = True
+                                except Exception:
+                                    try:
+                                        import pyautogui
+                                        pyautogui.FAILSAFE = False
+                                        pyautogui.click(cx, cy)
+                                        clicked = True
+                                    except Exception:
+                                        pass
+                            if not clicked:
+                                try:
+                                    btn.Click()
+                                except Exception:
+                                    pass
+                except Exception:
+                    pass
+                try:
+                    for ch in c.GetChildren():
+                        if id(ch) not in seen:
+                            q.append(ch)
+                except Exception:
+                    pass
         except Exception:
             pass
 

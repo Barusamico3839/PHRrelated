@@ -1,0 +1,9 @@
+    # テンプレートから結果ブックを用意し、RPAシートを完全コピー→resultsへ転記
+    _ensure_results_book_template(dst_path)
+    src_sheet_name = "RPAシート"
+    new_sheet = _copy_sheet_full_via_com(src_path, src_sheet_name, dst_path, str(tehai_number))
+    if not new_sheet:
+        try:
+            new_sheet = _copy_sheet_values(src_path, src_sheet_name, dst_path, str(tehai_number))
+        except Exception as e:
+            print(f"[2.get_pad_result] Excelコピーエラー: {e}")

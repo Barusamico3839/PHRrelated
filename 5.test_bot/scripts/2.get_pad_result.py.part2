@@ -1,0 +1,117 @@
+def _try_click_buttons():
+    auto = _import_uia()
+    if not auto:
+        print("[2.get_pad_result] UI操作スキップ")
+        return
+
+    def find_button_by(name=None, automation_id=None):
+        try:
+            root = auto.WindowControl()
+            for c in root.GetChildren():
+                try:
+                    btn = None
+                    if automation_id:
+                        btn = c.ButtonControl(AutomationId=automation_id)
+                        if btn and btn.Exists(0):
+                            return btn
+                    if name:
+                        btn = c.ButtonControl(Name=name)
+                        if btn and btn.Exists(0):
+                            return btn
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return None
+
+    btn = find_button_by(name="はい", automation_id="3672912")
+    if btn:
+        try:
+            btn.Click()
+            print("[2.get_pad_result] 'はい' をクリック")
+        except Exception as e:
+            print(f"[2.get_pad_result] 'はい' クリック失敗: {e}")
+
+    deadline = time.time() + 6
+    while time.time() < deadline:
+        ok = find_button_by(name="OK", automation_id="8590578")
+        if ok:
+            try:
+                ok.Click()
+                print("[2.get_pad_result] 'OK' をクリック")
+                time.sleep(0.4)
+                continue
+            except Exception as e:
+                print(f"[2.get_pad_result] 'OK' クリック失敗: {e}")
+                break
+        time.sleep(0.5)
+
+
+def run(tehai_number: int, timestamp: str) -> str:
+    print(f"[2.get_pad_result] 開始 tehai_number={tehai_number}, ts={timestamp}")
+    src_path = os.path.join(
+        os.path.expanduser("~"),
+        "Desktop",
+        "【全社標準】弔事対応フォルダ",
+        "2. RPAブック",
+        "RPAブック.xlsx",
+    )
+    dst_dir = os.path.join(
+        os.path.expanduser("~"),
+        "Desktop",
+        "【全社標準】弔事対応フォルダ",
+        "5.test_bot",
+    )
+    os.makedirs(dst_dir, exist_ok=True)
+    dst_path = os.path.join(dst_dir, f"results_{timestamp}.xlsx")
+
+    try:
+        new_sheet = _copy_sheet_values(src_path, "RPAシート", dst_path, str(tehai_number))
+    except Exception as e:
+        print(f"[2.get_pad_result] Excel処理エラー: {e}")
+        raise
+
+    # 添付PDFのコピー: '*弔事連絡票.pdf' を探し、results_%ts%添付PDF/{tehai_number}.pdf へ保存
+    try:
+        src_pdf_dir = os.path.join(
+            os.path.expanduser("~"),
+            "Desktop",
+            "【全社標準】弔事対応フォルダ",
+            "2. RPAブック",
+        )
+        patterns = [
+            os.path.join(src_pdf_dir, "*弔事連絡票.pdf"),
+            os.path.join(src_pdf_dir, "* 弔事連絡票.pdf"),
+            os.path.join(src_pdf_dir, "*　弔事連絡票.pdf"),
+        ]
+        candidates = []
+        for pat in patterns:
+            try:
+                candidates.extend(glob.glob(pat))
+            except Exception:
+                pass
+        # 重複除去
+        candidates = list(dict.fromkeys(candidates))
+        if candidates:
+            latest = max(candidates, key=lambda p: os.path.getmtime(p))
+            pdf_dir = os.path.join(dst_dir, f"results_{timestamp}添付PDF")
+            os.makedirs(pdf_dir, exist_ok=True)
+            pdf_dst = os.path.join(pdf_dir, f"{tehai_number}.pdf")
+            shutil.copy2(latest, pdf_dst)
+            print(f"[2.get_pad_result] PDFコピー: '{latest}' -> '{pdf_dst}'")
+        else:
+            print(f"[2.get_pad_result] 弔事連絡票のPDFが見つかりませんでした: dir={src_pdf_dir}")
+    except Exception as e:
+        print(f"[2.get_pad_result] PDFコピー時のエラー: {e}")
+    _try_click_buttons()
+    print("[2.get_pad_result] 完了")
+    return new_sheet
+
+
+if __name__ == "__main__":
+    try:
+        run(1234, "0101_1234")
+    except Exception as e:
+        print(f"[2.get_pad_result] 例外: {e}")
+        sys.exit(1)
+
