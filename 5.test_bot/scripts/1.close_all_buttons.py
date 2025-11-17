@@ -58,6 +58,10 @@ def _dismiss_toast_fast(auto, rounds: int = 2) -> int:
     clicked = 0
     if not auto:
         return 0
+    if _show_desktop(auto):
+        print('[1.close_all_buttons] Minimized open windows with Win+D.')
+    else:
+        print('[1.close_all_buttons] Could not send Win+D; continuing without minimising.')
     for _ in range(max(1, int(rounds))):
         try:
             root = auto.GetRootControl()
@@ -134,6 +138,333 @@ def _dismiss_toast_fast(auto, rounds: int = 2) -> int:
         except Exception:
             pass
     return clicked
+
+
+def _control_center(ctrl) -> tuple:
+    """Return (cx, cy) integer tuple for control center if bounding rect is available."""
+    rect = getattr(ctrl, 'BoundingRectangle', None)
+    try:
+        if isinstance(rect, (tuple, list)) and len(rect) >= 4:
+            l, t, r, b = rect[0], rect[1], rect[2], rect[3]
+        else:
+            l = getattr(rect, 'left', None)
+            t = getattr(rect, 'top', None)
+            r = getattr(rect, 'right', None)
+            b = getattr(rect, 'bottom', None)
+        if None in (l, t, r, b):
+            return ()
+        cx = int((int(l) + int(r)) / 2)
+        cy = int((int(t) + int(b)) / 2)
+        return (cx, cy)
+    except Exception:
+        return ()
+
+
+def _click_center(ctrl) -> bool:
+    """Click the center of a control; falls back to UI Automation click."""
+    pt = _control_center(ctrl)
+    if pt:
+        x, y = pt
+        try:
+            import ctypes, time as _t
+            user32 = ctypes.windll.user32
+            try:
+                user32.SetProcessDPIAware()
+            except Exception:
+                pass
+            user32.SetCursorPos(int(x), int(y))
+            user32.mouse_event(0x0002, 0, 0, 0, 0)
+            _t.sleep(0.02)
+            user32.mouse_event(0x0004, 0, 0, 0, 0)
+            return True
+        except Exception:
+            try:
+                import pyautogui
+                pyautogui.FAILSAFE = False
+                pyautogui.click(int(x), int(y))
+                return True
+            except Exception:
+                pass
+    try:
+        ctrl.Click()
+        return True
+    except Exception:
+        return False
+
+
+def _close_window_by_hwnd(hwnd: int) -> bool:
+    """Send WM_CLOSE to the specified native window handle."""
+    try:
+        if not hwnd:
+            return False
+        import ctypes
+        user32 = ctypes.windll.user32
+        WM_CLOSE = 0x0010
+        user32.PostMessageW(int(hwnd), WM_CLOSE, 0, 0)
+        # Allow the target window to process the close request
+        time.sleep(0.1)
+        return True
+    except Exception:
+        return False
+
+
+def _find_window_hwnd(ctrl) -> int:
+    """Ascend the UIA tree to locate the owning window handle."""
+    try:
+        current = ctrl
+        steps = 0
+        last_hwnd = 0
+        window_prefix = 'WindowsForms10.Window'
+        while current and steps < 10:
+            try:
+                hwnd = getattr(current, 'NativeWindowHandle', None) or 0
+            except Exception:
+                hwnd = 0
+            try:
+                cls = getattr(current, 'ClassName', '') or ''
+            except Exception:
+                cls = ''
+            if hwnd:
+                last_hwnd = int(hwnd)
+                if cls.startswith(window_prefix):
+                    return last_hwnd
+            try:
+                current = current.GetParentControl()
+            except Exception:
+                current = None
+            steps += 1
+        return last_hwnd
+    except Exception:
+        return 0
+
+
+def _force_close_shadan_window_native() -> bool:
+    """Last-resort close for 遮断予告/メッセージ通知 windows via Win32 API."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        user32 = ctypes.windll.user32
+        targets = []
+
+        @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+        def _enum_proc(hwnd, _lparam):
+            try:
+                if not user32.IsWindowVisible(hwnd):
+                    return True
+                length = user32.GetWindowTextLengthW(hwnd)
+                if length <= 0:
+                    return True
+                buf = ctypes.create_unicode_buffer(length + 1)
+                user32.GetWindowTextW(hwnd, buf, length + 1)
+                title = buf.value or ''
+                if any(key in title for key in ('遮断予告', 'メッセージ通知')):
+                    targets.append(hwnd)
+            except Exception:
+                pass
+            return True
+
+        user32.EnumWindows(_enum_proc, 0)
+        for hwnd in targets:
+            if _close_window_by_hwnd(hwnd):
+                try:
+                    print('[1.close_all_buttons] 遮断予告をWM_CLOSEで閉じました。')
+                except Exception:
+                    pass
+                return True
+    except Exception:
+        pass
+    return False
+
+
+def _click_shadan_notice(auto) -> bool:
+    """Find and click the '閉じる' button on 遮断予告 notification windows."""
+    if not auto:
+        return False
+
+    candidates = []
+    try:
+        btn = auto.ButtonControl(AutomationId='1903760')
+    except Exception:
+        btn = None
+    if btn:
+        candidates.append(btn)
+    try:
+        by_name = auto.ButtonControl(Name='閉じる')
+    except Exception:
+        by_name = None
+    if by_name and by_name not in candidates:
+        candidates.append(by_name)
+
+    for candidate in candidates:
+        try:
+            if not candidate or not candidate.Exists(0.1):
+                continue
+            parent = None
+            try:
+                parent = candidate.GetParentControl()
+            except Exception:
+                parent = None
+            try:
+                window_hwnd = _find_window_hwnd(parent or candidate)
+            except Exception:
+                window_hwnd = 0
+            if parent:
+                try:
+                    parent.SetActive()
+                except Exception:
+                    pass
+            if _click_center(candidate):
+                try:
+                    print('[1.close_all_buttons] Clicked ShadanYokoku close button.')
+                except Exception:
+                    pass
+                return True
+            try:
+                invoke = candidate.GetInvokePattern()
+                if invoke:
+                    invoke.Invoke()
+                    print('[1.close_all_buttons] Invoked ShadanYokoku close button.')
+                    return True
+            except Exception:
+                pass
+            esc_sent = False
+            try:
+                if parent:
+                    try:
+                        parent.SetFocus()
+                    except Exception:
+                        pass
+                auto.SendKeys('{ESC}', interval=0.0, waitTime=0.0)
+                time.sleep(0.1)
+                esc_sent = True
+            except Exception:
+                esc_sent = False
+            if esc_sent:
+                try:
+                    print('[1.close_all_buttons] ESCで遮断予告を閉じる試行を行いました。')
+                except Exception:
+                    pass
+                return True
+            if window_hwnd and _close_window_by_hwnd(window_hwnd):
+                try:
+                    print('[1.close_all_buttons] 遮断予告をWM_CLOSEで閉じる試行を行いました。')
+                except Exception:
+                    pass
+                return True
+        except Exception:
+            pass
+
+    target_name = '閉じる'
+    target_aid = '1903760'
+    target_class = 'WindowsForms10.BUTTON.app.0.d7ec25_r22_ad1'
+    try:
+        root = auto.GetRootControl()
+    except Exception:
+        return False
+
+    queue = list(getattr(root, 'GetChildren', lambda: [])())
+    seen = set()
+    while queue:
+        ctrl = queue.pop(0)
+        if id(ctrl) in seen:
+            continue
+        seen.add(id(ctrl))
+        try:
+            name = getattr(ctrl, 'Name', '') or ''
+            aid = getattr(ctrl, 'AutomationId', '') or ''
+            cls = getattr(ctrl, 'ClassName', '') or ''
+            if (aid == target_aid or name == target_name) and (not target_class or cls == target_class):
+                if not ctrl.Exists(0.1):
+                    continue
+                parent = None
+                try:
+                    parent = ctrl.GetParentControl()
+                except Exception:
+                    parent = None
+                try:
+                    window_hwnd = _find_window_hwnd(parent or ctrl)
+                except Exception:
+                    window_hwnd = 0
+                if parent:
+                    try:
+                        parent.SetActive()
+                    except Exception:
+                        pass
+                if _click_center(ctrl):
+                    try:
+                        print('[1.close_all_buttons] Clicked ShadanYokoku close button (BFS).')
+                    except Exception:
+                        pass
+                    return True
+                try:
+                    invoke = ctrl.GetInvokePattern()
+                    if invoke:
+                        invoke.Invoke()
+                        print('[1.close_all_buttons] Invoked ShadanYokoku close button (BFS).')
+                        return True
+                except Exception:
+                    pass
+                esc_sent = False
+                try:
+                    if parent:
+                        try:
+                            parent.SetFocus()
+                        except Exception:
+                            pass
+                    auto.SendKeys('{ESC}', interval=0.0, waitTime=0.0)
+                    time.sleep(0.1)
+                    esc_sent = True
+                except Exception:
+                    esc_sent = False
+                if esc_sent:
+                    try:
+                        print('[1.close_all_buttons] ESCで遮断予告を閉じる試行を行いました。(BFS)')
+                    except Exception:
+                        pass
+                    return True
+                if window_hwnd and _close_window_by_hwnd(window_hwnd):
+                    try:
+                        print('[1.close_all_buttons] 遮断予告をWM_CLOSEで閉じる試行を行いました。(BFS)')
+                    except Exception:
+                        pass
+                    return True
+        except Exception:
+            pass
+        try:
+            for child in ctrl.GetChildren():
+                if id(child) not in seen:
+                    queue.append(child)
+        except Exception:
+            pass
+    if _force_close_shadan_window_native():
+        return True
+    return False
+
+
+def _show_desktop(auto) -> bool:
+    """Try to minimise all windows using Win+D."""
+    try:
+        if auto:
+            auto.SendKeys('{Win}d', interval=0.0, waitTime=0.0)
+            time.sleep(0.2)
+            return True
+    except Exception:
+        pass
+    try:
+        import ctypes, time as _t
+        user32 = ctypes.windll.user32
+        KEYEVENTF_KEYUP = 0x0002
+        VK_LWIN = 0x5B
+        VK_D = 0x44
+        user32.keybd_event(VK_LWIN, 0, 0, 0)
+        user32.keybd_event(VK_D, 0, 0, 0)
+        _t.sleep(0.03)
+        user32.keybd_event(VK_D, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, 0)
+        return True
+    except Exception:
+        return False
+
 
 def _click_ok_stronger(auto, parent, name: str, automation_id: str) -> bool:
     """Even more aggressive OK click: dismiss toasts, coordinate click, retry.
@@ -402,8 +733,13 @@ def run(tehai_number: int) -> Dict[str, Any]:
         print("[1.close_all_buttons] UI操作不可のため次工程へ")
         return {"message_dialog": None, "next": "step2"}
 
-    deadline = time.time() + 300  # 5分
+    deadline = time.time() + 600  # 10 min
     while time.time() < deadline:
+        try:
+            if _click_shadan_notice(auto):
+                continue
+        except Exception:
+            pass
         # 対応するメール → 入力 → OK
         try:
             mail_win = _find_win(auto, name="対応するメール", automation_id="FormInputDialog", class_name="WindowsForms10.Window.8.app.0.6e7d48_r7_ad1", timeout=1)
@@ -571,8 +907,8 @@ def run(tehai_number: int) -> Dict[str, Any]:
 
         time.sleep(0.5)
 
-    # 5分経過
-    print('[1.close_all_buttons] 5分待機中にポップアップがありませんでした')
+    # 10-minute watch finished
+    print('[1.close_all_buttons] 10-minute watch finished, no popups detected')
     return {"message_dialog": message_dialog, "next": "error"}
 
 

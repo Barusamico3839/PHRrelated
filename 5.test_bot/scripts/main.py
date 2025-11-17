@@ -558,6 +558,33 @@ def _find_power_automate_hwnd() -> int:
     return 0
 
 
+def _minimize_windows_before_log() -> bool:
+    """Minimize all open windows via Win+D before creating the log overlay."""
+    try:
+        auto = _import_uia()
+        if auto:
+            auto.SendKeys('{Win}d', interval=0.0, waitTime=0.0)
+            time.sleep(0.2)
+            return True
+    except Exception:
+        pass
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        KEYEVENTF_KEYUP = 0x0002
+        VK_LWIN = 0x5B
+        VK_D = 0x44
+        user32.keybd_event(VK_LWIN, 0, 0, 0)
+        user32.keybd_event(VK_D, 0, 0, 0)
+        time.sleep(0.03)
+        user32.keybd_event(VK_D, 0, KEYEVENTF_KEYUP, 0)
+        user32.keybd_event(VK_LWIN, 0, KEYEVENTF_KEYUP, 0)
+        return True
+    except Exception:
+        pass
+    return False
+
+
 def _minimize_all_except_log_window():
     """Minimize all visible top-level windows except the Tk log window.
     If the log window is minimized, restore it and send it to back.
@@ -909,6 +936,12 @@ def main():
         print(f"[main] 初期入力エラー: {e}")
         _show_failed_banner()
         sys.exit(1)
+
+    try:
+        if _minimize_windows_before_log():
+            print("[main] ログウインドウ表示前に全ウインドウを最小化しました。")
+    except Exception:
+        pass
 
     logwin = _LogWindow()
     try:

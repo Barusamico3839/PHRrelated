@@ -1,0 +1,9 @@
+
+1.microsoft 設定をすること
+
+2.ファイル構成を整えること
+
+3.onedrive連携、同じファイルがあるかを連携する。
+
+Microsoft Graph moduleを入れる？ いれない、けどこれは必要そう
+Install-Module Microsoft.Graph.Authentication -Scope CurrentUser -AllowClobber

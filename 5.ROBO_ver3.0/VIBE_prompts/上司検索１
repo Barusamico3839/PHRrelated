@@ -1,0 +1,158 @@
+B.find_my_boss
+を作っていきたい。B.find_my_bossのフォルダー内に作って。
+
+上司の検索方法はC:\Users\E375411\Desktop\【全社標準】弔事対応フォルダ\5.ROBO_ver3.0\ROBO_scripts\test\test_find_my_boss.ps1を参考にして。
+
+このプログラムは
+B.find_my_boss.py
+Ba.login_msGraph.py or .ps1
+Bb.get_user_data.py or .ps1
+Bc.get_boss_data.py or .ps1
+Bd.find_job_title.py
+Be.Kachou_hantei.py
+Bf.
+________________________________________
+B.find_my_boss.py
+これはこのフォルダー内の関数のメイン関数的な立ち位置となっています。
+B.find_my_boss.py
+と実行すると、このフォルダーのfind_my_bossを実行できるようにして。
+
+________________________________________
+Ba.login_msGraph.py or .ps1
+pythonで書いても、powershellで書いてもよい
+
+"C:\Users\E375411\Desktop\【全社標準】弔事対応フォルダ\2. RPAブック\RPAブック.xlsx"
+の"RPAシート"のJ5のセルの内容を%mail_honnin%という変数に入れてください
+
+そして、これから%mail_honnin%のユーザー検索と、上司検索をmsgraphsを使って行っていきます。
+msGraphに接続できて、ユーザーのデータなどを取得する準備ができてるか、確認してください。
+________________________________________
+Bb.get_user_data.py or .ps1
+ユーザーのデータをとってきてください
+この時、"C:\Users\E375411\Desktop\【全社標準】弔事対応フォルダ\2. RPAブック\RPAブック.xlsx"
+の"RPAシート"の
+I5に姓名 "%Surname%　%GivenName%"のように間に全角スペースを入れて入力して
+K5に%CompanyName%を
+L5に%Department%を
+入れてください
+
+ユーザーデータをとってきた後に、もう一つ別のメールアドレスでユーザーデータをとってきてほしい
+今度は"RPAシート"のD3のセルに入ってるメールアドレス使って同じように検索して、
+結果を"RPAシート"のD15に姓名 "%Surname%　%GivenName%"のように間に全角スペースを入れて入力してください
+________________________________________
+Bc.get_boss_data.py or .ps1
+
+person=ユーザーのメールアドレス
+while（上司の情報が取れなくなるまで）
+｛
+%person%の上司のデータをとってきてください
+この時、i = 0から始めて、一人目の上司をi=0 その上司の上司をi=1 その上司の上司の上の上司をi=3.....としてください。
+そうしたら
+[6 + i] 行目の
+J列目に検索してきた%Mail%を入力してください
+I列目に姓名 "%Surname%　%GivenName%"のように間に全角スペースを入れて入力して
+K列目に%CompanyName%を
+L列目に%Department%を
+を入力してください
+ここをループしてください
+｝
+________________________________________
+Bd.find_job_title.py
+
+まず、microsoft edgeで"https://panasonic.phoneappli.net/front/login?returnTo=%2Ffront%2FinternalContacts%3FapiType%3Dsearch%26page%3D0%26size%3D30"を開いてほしい。ひらいたら、
+<div data-bind="attr: {class: className}" class="normal_button o365-login-button">
+                        <span data-bind="text: buttonText, visible: buttonText !== null">Microsoft 365でログインする</span>
+                    </div>
+/html/body/div/section/div/div[2]/a/div
+を押して、ログインをする。
+
+先ほどの検索してきたユーザー一人ひとり、全員に同じことを行っていきたい。まず一人目（RPAシートのJ5）から。一人目の情報が記入されている行をFirst行（最初、first=5行目）とする
+二人目はfirst+1行目として。
+while
+{
+<input data-v-972bae49="" type="search" maxlength="50" placeholder="キーワード" value="">
+/html/body/div[1]/div/div[1]/div/main/header/div/div/div/div[3]/input
+この検索欄に、
+First行、J列に書いてある、メールアドレスを記入して。
+
+<button data-v-972bae49="" class="search__button" type="button">検索</button>
+/html/body/div[1]/div/div[1]/div/main/header/div/div/div/button
+
+このボタンを押してほしいです。
+
+そしたら検索が終わると、
+
+<div class="_itemText_ls35d_61"><span>パナソニックホールディングス株式会社</span><!----></div>
+/html/body/div[1]/div/div[1]/div/main/section/section[2]/section/ul[2]/li[1]/div[2]/div/button/div
+
+や
+
+<div class="_itemText_ls35d_61"><span>パナソニックホールディングス株式会社</span><!----></div>
+/html/body/div[1]/div/div[1]/div/main/section/section[2]/section/ul[2]/li[2]/div[2]/div/button/div
+
+や
+
+<div class="_itemText_ls35d_61"><span>パナソニックホールディングス株式会社</span><!----></div>
+/html/body/div[1]/div/div[1]/div/main/section/section[2]/section/ul[2]/li[3]/div[2]/div/button/div
+
+が何列か出てくるので、その行がある分だけ、認識してほしい
+
+そして、もし行が１つの場合はその行を対象とする。
+
+もし行が複数ある場合は、RPAシートのL列に書き込んだ、Departmentの情報を思い出して、
+/html/body/div[1]/div/div[1]/div/main/section/section[2]/section/ul[2]/li[3]/div[2]/div/button/div
+の中の要素の文字のうち何%がDepartmentの中に入っていたか（一致率）を調べて、一致率が高い行を対象とする
+
+もし行がない場合は変数"%Position%"に"上司検索失敗"と入れてほしい
+
+
+対象とする行にはその左隣の
+<button data-v-4abcd769="" type="button" class="internal-item__column--person"><div data-v-4abcd769="" class="internal-item__column--photo"><img data-v-c550663a="" data-v-4abcd769="" class="image-container loaded internal-item__column--photo-container" src="/front/faceImage/thumbnail/882586" alt="" loading="lazy" draggable="false"></div><div data-v-4abcd769="" class="_nameColumn_pij2g_22 internal-item__column--name"><div class="_name_pij2g_22"><span class="_nameText_pij2g_31"><span>村瀬 恭通</span></span><br><span class="_textHeightLarge_pij2g_39"><span>ムラセ ヤスミチ</span></span><!----><span class="_positionPaddingLarge_pij2g_49"><span>参与</span></span></div></div></button>
+/html/body/div[1]/div/div[1]/div/main/section/section[2]/section/ul[2]/li[1]/div[1]/button
+
+のボタンをクリックして
+
+もし、
+<div data-v-cbd4949e="" class="detail__position"><span data-v-cbd4949e="">参与</span></div>
+/html/body/div[1]/div/div[6]/div[3]/div[2]/div/div/div/div[1]/div/div/div[2]/div[3]
+
+この要素があったら、この情報を変数"position"に代入してほしい。そしたら、
+
+<button data-v-45919eb5="" class="profile-dialog__close" type="button"></button>
+/html/body/div[1]/div/div[6]/div[3]/div[2]/div/div/div/button
+
+このボタンを押し、
+RPAシートの次の行の人の検索に移ってほしいです。
+first = first + 1
+}
+
+これが全員分終わったら、RPAシートのM列5行目以降のセルに結果を入れていってほしいです！
+それと一行目の本人の役職を抜いた、2行目からの配列を"positions"にきろくして！
+
+________________________________________
+Be.Kachou_hantei.py
+
+"positions"(RPAブックN列)一つ一つみて、ロジックを当てはめていきたい
+if "positions"N列の中に"課長"、"所長"、"主幹"という文言があったら、
+    RPAシートの"課長"、"所長"、"主幹"の右隣のセル(M列)に"ccに含む"という文字列を入れてほしい
+else 
+    RPAシートのN6のセルに"ccに含む"という文字列を入れてほしい
+ 
+そのあと、もし、RPAシートの、N16というセルの中身が"※二次上司は必要"の場合、
+先ほど"ccに含む"と入れたM列のセルの一つ下のセルに"ccに含む"と入れてほしい
+
+最後に、M列5行目以降をすべて見て、もし、中身が
+"社長","副社長","常務","監査役","執行役員","本部長"
+であったら、その一つ右のセルに
+"上位役職"と入力してほしい。
+________________________________________
+
+そしたら上司検索終わりです。
+
+
+
+
+
+
+
+

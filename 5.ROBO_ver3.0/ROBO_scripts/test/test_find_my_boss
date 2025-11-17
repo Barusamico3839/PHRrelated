@@ -1,0 +1,24 @@
+This folder stores helper scripts for looking up a user's profile and manager via Microsoft Graph.
+
+PowerShell (preferred)
+1. Run in PowerShell 7:
+   ./test_find_my_boss.ps1 -User "okada.kazuhito@jp.panasonic.com"
+
+   If the browser redirect to localhost fails, switch to the device-code flow:
+   ./test_find_my_boss.ps1 -User "okada.kazuhito@jp.panasonic.com" -UseDeviceAuth
+
+   To dump the full user/manager payload as JSON instead of formatted lists:
+   ./test_find_my_boss.ps1 -User "okada.kazuhito@jp.panasonic.com" -Raw
+
+   Required delegated scopes: User.Read.All, Directory.Read.All (admin consent usually needed).
+
+Python (optional)
+1. Install dependencies:
+   pip install msal requests
+2. Set environment variables for your registered app:
+   set MSAL_CLIENT_ID=<client id>
+   set MSAL_TENANT_ID=<tenant id>
+3. Execute with device-code auth:
+   python .\test_find_my_boss.py --user okada.kazuhito@jp.panasonic.com
+
+Refer to the comments at the top of each script for additional details.
